@@ -93,10 +93,25 @@
           <div class="divider"></div>
           <h3>已保存草稿</h3>
           <div id="draftList" class="draft-list"></div>
+          <div class="divider"></div>
+          <h3>接力传档</h3>
+          <div class="relay-actions">
+            <button id="relayExportBtn" type="button">导出接力档</button>
+            <button id="relayImportBtn" type="button">导入接力档</button>
+            <input id="relayFileInput" type="file" accept="application/json,.json" hidden />
+          </div>
+          <p class="relay-hint">导出只带落字用到的字模、纸张设置和作品名；导入校验通过后会合并字模并留成草稿。</p>
+          <div id="relayMessage" class="relay-message info" role="status">
+            <strong>两位摊主可在此接力同一张版面。</strong>
+            <span>先导出接力档交给下一位；收到档案后导入，校验不过时版面与草稿不动。</span>
+          </div>
         </aside>
       </section>
     </main>
 
+    <script src="relay-rules.js"></script>
+    <script src="relay-archive.js"></script>
     <script src="app.js"></script>
+    <script src="relay-ui.js"></script>
   </body>
 </html>

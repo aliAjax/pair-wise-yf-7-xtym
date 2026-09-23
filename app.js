@@ -70,10 +70,7 @@ function saveState() {
 }
 
 function getGrid() {
-  const size = state.settings.paperSize;
-  if (size === "bookmark") return { cols: 7, rows: 18 };
-  if (size === "square") return { cols: 12, rows: 12 };
-  return { cols: 16, rows: 10 };
+  return window.RelayRules.getPaperGrid(state.settings.paperSize);
 }
 
 function placementKey(row, col) {
@@ -192,7 +189,7 @@ function renderDrafts() {
       .map(
         (draft) => `
           <article class="draft-item">
-            <strong>${escapeHtml(draft.title)}</strong>
+            <strong>${escapeHtml(draft.title)}${draft.relay ? '<span class="relay-tag">接力档</span>' : ""}</strong>
             <span>${draft.placements.length}个落字 · ${new Date(draft.savedAt).toLocaleString("zh-CN")}</span>
             <div class="draft-actions">
               <button type="button" data-load-draft="${draft.id}">载入</button>

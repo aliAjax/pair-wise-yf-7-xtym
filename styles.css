@@ -397,6 +397,64 @@ h3 {
   margin: 14px 0;
 }
 
+.relay-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.relay-actions button {
+  flex: 1;
+  padding: 9px 8px;
+}
+
+.relay-hint {
+  margin: 8px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.relay-message {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf8;
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.relay-message strong {
+  font-size: 13px;
+}
+
+.relay-message span {
+  color: var(--muted);
+}
+
+.relay-message.ok {
+  border-color: var(--green);
+  background: rgba(60, 112, 86, 0.08);
+}
+
+.relay-message.warn {
+  border-color: var(--red);
+  background: rgba(164, 64, 55, 0.08);
+}
+
+.relay-tag {
+  display: inline-block;
+  margin-left: 6px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  background: var(--gold);
+  color: #fffaf1;
+  font-size: 10px;
+  font-weight: 900;
+  vertical-align: middle;
+}
+
 @media (max-width: 1120px) {
   .workspace {
     grid-template-columns: 1fr;
