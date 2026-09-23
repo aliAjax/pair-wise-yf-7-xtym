@@ -16,9 +16,14 @@
         <div class="top-actions">
           <button id="saveDraftBtn" class="primary">保存草稿</button>
           <button id="exportBtn">导出预览图</button>
+          <button id="relayExportBtn">交接导出</button>
+          <button id="relayImportBtn">接力导入</button>
+          <input id="relayFile" type="file" accept=".json,application/json" hidden />
           <button id="clearBoardBtn">清空版面</button>
         </div>
       </header>
+
+      <div id="relayNotice" class="relay-notice" role="status" aria-live="polite" hidden></div>
 
       <section class="settings-bar" aria-label="版面设置">
         <label>
@@ -97,6 +102,8 @@
       </section>
     </main>
 
+    <script src="storage.js"></script>
+    <script src="rules.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

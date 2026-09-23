@@ -1,28 +1,4 @@
-const storageKey = "zfl16-movable-type-workshop";
-
-const starterInventory = [
-  { id: crypto.randomUUID(), char: "山", style: "宋体旧字", size: 30, quantity: 4, wear: "微磨" },
-  { id: crypto.randomUUID(), char: "月", style: "宋体旧字", size: 30, quantity: 3, wear: "旧痕" },
-  { id: crypto.randomUUID(), char: "风", style: "楷体木刻", size: 28, quantity: 2, wear: "微磨" },
-  { id: crypto.randomUUID(), char: "花", style: "楷体木刻", size: 28, quantity: 2, wear: "新" },
-  { id: crypto.randomUUID(), char: "茶", style: "黑体铅字", size: 24, quantity: 3, wear: "旧痕" },
-  { id: crypto.randomUUID(), char: "雨", style: "仿宋细字", size: 22, quantity: 4, wear: "新" }
-];
-
-const defaultState = {
-  inventory: starterInventory,
-  selectedTypeId: starterInventory[0].id,
-  placements: [],
-  drafts: [],
-  settings: {
-    paperSize: "postcard",
-    flowMode: "horizontal",
-    gridGap: 8,
-    workTitle: "晚风小笺"
-  }
-};
-
-let state = loadState();
+let state = WorkshopStorage.load();
 
 const els = {
   paperSize: document.querySelector("#paperSize"),
@@ -47,33 +23,15 @@ const els = {
   inventoryCount: document.querySelector("#inventoryCount"),
   saveDraftBtn: document.querySelector("#saveDraftBtn"),
   exportBtn: document.querySelector("#exportBtn"),
-  clearBoardBtn: document.querySelector("#clearBoardBtn")
+  clearBoardBtn: document.querySelector("#clearBoardBtn"),
+  relayExportBtn: document.querySelector("#relayExportBtn"),
+  relayImportBtn: document.querySelector("#relayImportBtn"),
+  relayFile: document.querySelector("#relayFile"),
+  notice: document.querySelector("#relayNotice")
 };
 
-function loadState() {
-  const saved = localStorage.getItem(storageKey);
-  if (!saved) return structuredClone(defaultState);
-  try {
-    const parsed = JSON.parse(saved);
-    return {
-      ...structuredClone(defaultState),
-      ...parsed,
-      settings: { ...defaultState.settings, ...parsed.settings }
-    };
-  } catch {
-    return structuredClone(defaultState);
-  }
-}
-
-function saveState() {
-  localStorage.setItem(storageKey, JSON.stringify(state));
-}
-
 function getGrid() {
-  const size = state.settings.paperSize;
-  if (size === "bookmark") return { cols: 7, rows: 18 };
-  if (size === "square") return { cols: 12, rows: 12 };
-  return { cols: 16, rows: 10 };
+  return WorkshopRules.getGrid(state.settings.paperSize);
 }
 
 function placementKey(row, col) {
@@ -193,7 +151,9 @@ function renderDrafts() {
         (draft) => `
           <article class="draft-item">
             <strong>${escapeHtml(draft.title)}</strong>
-            <span>${draft.placements.length}个落字 · ${new Date(draft.savedAt).toLocaleString("zh-CN")}</span>
+            <span>${draft.placements.length}个落字 · ${new Date(draft.savedAt).toLocaleString("zh-CN")}${
+          draft.source === "relay" ? " · 接力导入" : ""
+        }</span>
             <div class="draft-actions">
               <button type="button" data-load-draft="${draft.id}">载入</button>
               <button type="button" data-delete-draft="${draft.id}">删除</button>
@@ -205,7 +165,7 @@ function renderDrafts() {
 }
 
 function renderAll() {
-  saveState();
+  WorkshopStorage.save(state);
   renderSettings();
   renderStyleFilter();
   renderInventory();
@@ -300,6 +260,90 @@ function exportPreview() {
   link.click();
 }
 
+/* ---------- 接力导入导出 ---------- */
+
+function showNotice(status, title, lines) {
+  const list = lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("");
+  els.notice.className = `relay-notice ${status}`;
+  els.notice.hidden = false;
+  els.notice.innerHTML = `
+    <div class="relay-notice-head">
+      <strong>${escapeHtml(title)}</strong>
+      <button type="button" class="mini-btn" data-close-notice aria-label="关闭提示">×</button>
+    </div>
+    <ul class="relay-notice-body">${list}</ul>
+  `;
+}
+
+function hideNotice() {
+  els.notice.hidden = true;
+  els.notice.className = "relay-notice";
+  els.notice.innerHTML = "";
+}
+
+function safeFileName(value) {
+  return (value || "movable-type").replace(/[\\/:*?"<>|]/g, "_").trim() || "movable-type";
+}
+
+function exportRelay() {
+  if (!state.placements.length) {
+    showNotice("warn", "没有可交接的落字", ["请先在版面中落字，再导出交接文件。"]);
+    return;
+  }
+  const pkg = WorkshopRules.buildRelayPackage(state);
+  const blob = new Blob([JSON.stringify(pkg, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.download = `${safeFileName(state.settings.workTitle)}.relay.json`;
+  link.href = url;
+  link.click();
+  URL.revokeObjectURL(url);
+  const paperLabel = WorkshopRules.PAPER_LABELS[state.settings.paperSize];
+  showNotice("ok", "交接文件已导出", [
+    `作品名：${state.settings.workTitle || "未命名作品"}（${paperLabel}）`,
+    `包含 ${pkg.types.length} 款落字用到的字模、${pkg.placements.length} 个落字，未用库存未写入。`
+  ]);
+}
+
+function importRelayFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try {
+      data = JSON.parse(reader.result);
+    } catch {
+      showNotice("error", "导入未通过校验", ["文件不是有效的 JSON，当前版面与草稿保持原样。"]);
+      return;
+    }
+    const result = WorkshopRules.validateRelayPackage(data);
+    if (!result.ok) {
+      showNotice("error", "导入未通过校验，当前版面与草稿保持原样", result.errors);
+      return;
+    }
+    const next = WorkshopRules.applyRelayImport(state, data);
+    state.inventory = next.inventory;
+    state.settings = next.settings;
+    state.placements = next.placements;
+    state.drafts = next.drafts;
+    state.selectedTypeId = next.selectedTypeId;
+    renderAll();
+
+    const { mergedCount, addedCount, placementCount, mergedDetails } = next.summary;
+    const paperLabel = WorkshopRules.PAPER_LABELS[state.settings.paperSize];
+    const lines = [
+      `作品名：${state.settings.workTitle || "未命名作品"}（${paperLabel}），${placementCount} 个落字已接到新字模编号。`,
+      `同款字模合并 ${mergedCount} 款（数量取两边较多的一份），新增字模 ${addedCount} 款。`,
+      "导入版面已替换当前版面，并另存为一条草稿。"
+    ];
+    if (mergedDetails.length) lines.push(`数量更新：${mergedDetails.join("、")}。`);
+    showNotice("ok", "接力导入完成", lines);
+  };
+  reader.onerror = () => {
+    showNotice("error", "导入未通过校验", ["读取文件失败，请重试，当前版面与草稿保持原样。"]);
+  };
+  reader.readAsText(file);
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -328,7 +372,7 @@ els.gridGap.addEventListener("input", () => {
 
 els.workTitle.addEventListener("input", () => {
   state.settings.workTitle = els.workTitle.value;
-  saveState();
+  WorkshopStorage.save(state);
 });
 
 els.typeForm.addEventListener("submit", addType);
@@ -339,6 +383,17 @@ els.exportBtn.addEventListener("click", exportPreview);
 els.clearBoardBtn.addEventListener("click", () => {
   state.placements = [];
   renderAll();
+});
+
+els.relayExportBtn.addEventListener("click", exportRelay);
+els.relayImportBtn.addEventListener("click", () => els.relayFile.click());
+els.relayFile.addEventListener("change", () => {
+  const file = els.relayFile.files[0];
+  if (file) importRelayFile(file);
+  els.relayFile.value = "";
+});
+els.notice.addEventListener("click", (event) => {
+  if (event.target.closest("[data-close-notice]")) hideNotice();
 });
 
 els.typeList.addEventListener("click", (event) => {
